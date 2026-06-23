@@ -1,0 +1,65 @@
+#include <QTRSensors.h>
+
+#define BASE_SPEED 65
+#define MAX_SPEED 120
+#define TURN_SPEED 95
+
+#define LEFT_PWM 3
+#define LEFT_DIR 11
+#define RIGHT_PWM 9
+#define RIGHT_DIR 10
+
+QTRSensors qtr;
+const uint8_t sensorCount = 8;
+uint16_t sensors[sensorCount];
+
+float Kp = 0.035;
+float Kd = 0.22;
+int lastError = 0;
+
+void setup() {
+  pinMode(LEFT_PWM, OUTPUT);
+  pinMode(LEFT_DIR, OUTPUT);
+  pinMode(RIGHT_PWM, OUTPUT);
+  pinMode(RIGHT_DIR, OUTPUT);
+  
+  qtr.setTypeAnalog();
+  qtr.setSensorPins((const uint8_t[]){A7, A6, A5, A4, A3, A2, A1, A0}, sensorCount);
+  
+  for (int i = 0; i < 300; i++) { 
+    qtr.calibrate(); 
+    delay(10); 
+  }
+}
+
+void loop() {
+  uint16_t position = qtr.readLineBlack(sensors);
+  pidFollow(position);
+}
+
+void motorControl(int left, int right) {
+  if(left >= 0) digitalWrite(LEFT_DIR, HIGH); 
+  else { digitalWrite(LEFT_DIR, LOW); left = -left; }
+  
+  if(right >= 0) digitalWrite(RIGHT_DIR, HIGH); 
+  else { digitalWrite(RIGHT_DIR, LOW); right = -right; }
+  
+  analogWrite(LEFT_PWM, constrain(left, 0, MAX_SPEED));
+  analogWrite(RIGHT_PWM, constrain(right, 0, MAX_SPEED));
+}
+
+void stopRobot() {
+  analogWrite(LEFT_PWM, 0);
+  analogWrite(RIGHT_PWM, 0);
+}
+
+void pidFollow(uint16_t position) {
+  int error = (int)position - 3500;
+  int correction = Kp * error + Kd * (error - lastError);
+  lastError = error;
+  
+  int left = BASE_SPEED + correction;
+  int right = BASE_SPEED - correction;
+  
+  motorControl(left, right);
+}
